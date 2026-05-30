@@ -1,13 +1,14 @@
-name: Deploy live demo to GitHub Pages
+name: CI & deploy live demo
 
 on:
   push:
     branches:
       - main
       - claude/watermelon-quality-detector-BAk6F
+  pull_request:
   workflow_dispatch:
 
-# Allow the workflow to publish to Pages.
+# Allow the deploy job to publish to Pages.
 permissions:
   contents: read
   pages: write
@@ -19,6 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Validation runs on every push and PR. This is the required green check.
   build:
     runs-on: ubuntu-latest
     steps:
@@ -38,18 +40,23 @@ jobs:
         env:
           GITHUB_PAGES: 'true'
 
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
+  # Publishing to GitHub Pages only happens from main (after merge), and only
+  # once Pages is enabled in Settings -> Pages -> Source: GitHub Actions.
   deploy:
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/configure-pages@v5
+
       - id: deployment
         uses: actions/deploy-pages@v4
