@@ -8,6 +8,18 @@ automatically.
 Everything runs **100% on your device** in the browser. No photos or audio are
 ever uploaded.
 
+## 🚀 Live demo
+
+**<https://doringber.github.io/findmywatermalon/>**
+
+Open it on your phone for the full camera + thump experience. The demo is built
+and deployed automatically by GitHub Actions on every push (see
+`.github/workflows/deploy.yml`). GitHub Pages serves it over HTTPS, which is
+required for camera/microphone access.
+
+> First-time setup: in the repo's **Settings → Pages**, set **Source** to
+> **GitHub Actions**. The workflow handles the rest.
+
 ## What it checks
 
 | Signal | What the AI looks for | Why it matters |
