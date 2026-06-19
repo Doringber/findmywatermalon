@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeVerdict, scoreFieldSpot, scoreWebbing } from './scoring';
+import { computeVerdict, scoreFieldSpot, scoreWebbing, scoreShape } from './scoring';
 import type { ColorMetrics } from './colorAnalysis';
 import type { ThumpResult } from './soundAnalysis';
 
@@ -49,7 +49,38 @@ describe('scoreWebbing', () => {
   });
 });
 
+describe('scoreShape', () => {
+  it('rewards a round melon (aspect ~1)', () => {
+    const check = scoreShape(1);
+    expect(check.passed).toBe(true);
+    expect(check.score).toBe(100);
+  });
+
+  it('treats portrait and landscape elongation the same', () => {
+    expect(scoreShape(1.5).score).toBeCloseTo(scoreShape(1 / 1.5).score);
+  });
+
+  it('penalises an elongated melon', () => {
+    const check = scoreShape(1.8);
+    expect(check.passed).toBe(false);
+    expect(check.score).toBeLessThan(50);
+  });
+});
+
 describe('computeVerdict', () => {
+  it('adds a shape check only when an aspect ratio is given', () => {
+    expect(computeVerdict(ripeColors, null).checks.find((c) => c.id === 'shape')).toBeUndefined();
+    const withShape = computeVerdict(ripeColors, null, 1);
+    expect(withShape.checks.find((c) => c.id === 'shape')).toBeDefined();
+    expect(withShape.checks).toHaveLength(5);
+  });
+
+  it('an elongated shape drags the score below a round one', () => {
+    const round = computeVerdict(ripeColors, null, 1).score;
+    const oval = computeVerdict(ripeColors, null, 2).score;
+    expect(oval).toBeLessThan(round);
+  });
+
   it('grades a ripe melon highly when sound confirms it', () => {
     const v = computeVerdict(ripeColors, ripeThump);
     expect(v.score).toBeGreaterThanOrEqual(80);

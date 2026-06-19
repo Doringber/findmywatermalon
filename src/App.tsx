@@ -24,6 +24,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [colors, setColors] = useState<ColorMetrics | null>(null);
+  const [shape, setShape] = useState<number | undefined>(undefined);
   const [thump, setThump] = useState<ThumpResult | null>(null);
   const [verdict, setVerdict] = useState<WatermelonVerdict | null>(null);
   const [listening, setListening] = useState(false);
@@ -94,9 +95,12 @@ export function App() {
     try {
       // Score the locked-on region when we have one, else the centre.
       const box = detection?.found ? detection.box : null;
+      // Shape from the detection box aspect ratio (the square crop keeps it true).
+      const aspect = box && box.h > 0 ? box.w / box.h : undefined;
       const c = analyzeVideoFrame(videoRef.current, box);
       setColors(c);
-      setVerdict(computeVerdict(c, thump));
+      setShape(aspect);
+      setVerdict(computeVerdict(c, thump, aspect));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not analyse the frame.');
     }
@@ -108,13 +112,13 @@ export function App() {
     try {
       const result = await recordThump();
       setThump(result);
-      if (colors) setVerdict(computeVerdict(colors, result));
+      if (colors) setVerdict(computeVerdict(colors, result, shape));
     } catch {
       setError('Microphone unavailable — the sound test was skipped.');
     } finally {
       setListening(false);
     }
-  }, [colors]);
+  }, [colors, shape]);
 
   const locked = !!detection?.found;
   const box = detection?.box;
@@ -191,7 +195,7 @@ export function App() {
           </div>
         )}
 
-        {verdict && <ResultCard verdict={verdict} />}
+        {verdict && <ResultCard verdict={verdict} thump={thump} />}
 
         <Guide />
       </main>

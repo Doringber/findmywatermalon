@@ -20,6 +20,11 @@ const TIPS = [
     body: 'Well-defined dark-green stripes and rough "sugar" webbing point to good pollination and extra sweetness.',
   },
   {
+    icon: '⚪️',
+    title: 'Round, sweet shape',
+    body: 'Plump, round melons tend to be sweeter; tall, elongated ones are usually more watery. The app reads the shape of the melon it locks onto.',
+  },
+  {
     icon: '⚖️',
     title: 'Heavy for its size',
     body: 'Pick two of the same size — the heavier one holds more water and is usually juicier.',

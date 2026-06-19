@@ -27,7 +27,8 @@ required for camera/microphone access.
 | 🟡 **Field spot** | A big, creamy/buttery **yellow** patch | Ripened on the vine → sweeter. White/pale = picked early |
 | 🟢 **Rind colour** | Deep, dull **green** filling the frame | Healthy, mature rind |
 | 🦓 **Stripes / webbing** | Well-defined **dark-green** striping | Good pollination → more sugar |
-| 🥁 **Thump sound** | A deep, **hollow low-frequency** thud (~120–180 Hz) | Ripe melons resonate low; unripe ones ring high |
+| ⚪️ **Shape** | How **round vs. elongated** the locked-on melon is | Round melons tend to be sweeter; tall ones are more watery |
+| 🥁 **Thump sound** | A deep, **hollow low-frequency** thud (~120–180 Hz) | Ripe melons resonate low; unripe ones ring high. The app gives an explicit ✅/❌ "good choice" call |
 | 🌿 **Dry tail** | (Guide tip) A brown, dried stem | Fully vine-ripened |
 
 The camera analyses colour from a centred reticle; the optional **thump test**
@@ -80,6 +81,11 @@ Acoustic / thump research (natural frequency drops as the melon ripens; ~129–1
 - Brüel & Kjær — <https://www.bksv.com/pt/knowledge/blog/perspectives/ripe-watermelon>
 - Acoustics First — <https://acousticsfirst.info/2025/07/03/dont-knock-the-knock-acoustics-and-the-pursuit-of-the-perfect-watermelon/>
 - "A Study Sound Absorption for Ripeness… of Watermelon" (ResearchGate)
+
+Visual picking guide (field spot, webbing, shape, size, tail, sound) referenced for the in-app criteria:
+- r/coolguides "How to pick the right watermelon" — <https://www.reddit.com/r/coolguides/comments/f6trfi/how_to_pick_the_right_watermelon/>
+- Recipes Made Easy (Facebook) — <https://www.facebook.com/groups/recipesmadeeasy/posts/4453002224985801/>
+- Watermelon Board — <https://www.watermelon.org/the-slice/how-to-choose-a-watermelon/>
 
 ## Note on accuracy
 

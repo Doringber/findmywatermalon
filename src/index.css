@@ -196,6 +196,38 @@ body {
   }
 }
 
+.sound-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.sound-banner.good {
+  background: #e6f4ea;
+  color: #1a7f37;
+}
+
+.sound-banner.bad {
+  background: #fdecee;
+  color: #c0362c;
+}
+
+.sound-banner.warn {
+  background: #fff4e0;
+  color: #9a6700;
+}
+
+.sound-banner-hz {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
 .score-ring {
   display: grid;
   place-items: center;
