@@ -1,28 +1,35 @@
-# 🍉 AI vision Worker (optional, free)
+# 🍉 AI vision Worker (optional)
 
 A tiny [Cloudflare Worker](https://workers.cloudflare.com/) that grades a
-watermelon photo with **Claude vision**. It exists so the app can offer an
+watermelon photo with a **vision LLM**. It exists so the app can offer an
 optional "Ask AI" second opinion **without** shipping an API key to the browser.
 
-- **Free tier:** Cloudflare Workers' free plan covers 100k requests/day.
-- **Cost:** you pay Anthropic only for the vision calls you actually make
-  (the model is `claude-opus-4-8`; switch to `claude-haiku-4-5` in
-  `src/index.ts` to cut cost if you prefer).
-- **Privacy:** the frontend only calls this when the user taps **Ask AI**, and
-  only sends that one photo.
+It supports two providers — pick one:
 
-## Deploy (≈3 minutes)
+| Provider | Cost | Key | Quality |
+| --- | --- | --- | --- |
+| **Gemini** (`gemini-2.0-flash`) | **Free tier** | Free from [aistudio.google.com](https://aistudio.google.com/apikey) | Great |
+| **Claude** (`claude-opus-4-8`) | Paid | [console.anthropic.com](https://console.anthropic.com) | Best |
+
+Both return the **same JSON**, so the app doesn't care which you use. Cloudflare
+Workers' free plan covers 100k requests/day either way.
+
+## Deploy the FREE (Gemini) version (≈3 min)
 
 ```bash
 cd worker
 npm install
-npx wrangler login                     # opens browser, one-time
-npx wrangler secret put ANTHROPIC_API_KEY   # paste your Anthropic key
+npx wrangler login                          # opens browser, one-time
+npx wrangler secret put GEMINI_API_KEY      # paste your free Google AI Studio key
 npx wrangler deploy
 ```
 
 `wrangler deploy` prints a URL like
 `https://findmywatermelon-ai.<your-subdomain>.workers.dev`.
+
+> Prefer Claude instead? Run `npx wrangler secret put ANTHROPIC_API_KEY` (and
+> nothing else) — the Worker auto-detects the provider from whichever key is
+> set. To be explicit, uncomment `AI_PROVIDER` in `wrangler.toml`.
 
 ## Wire it to the app
 
@@ -39,3 +46,11 @@ button only appears when this is set, so the default build stays 100% on-device.
 
 `wrangler.toml` sets `ALLOWED_ORIGIN` to `https://doringber.github.io`. Change it
 if you serve the app from a different origin (localhost is always allowed for dev).
+
+## Other free options
+
+Want a different free model? The provider functions in `src/index.ts` are small
+and isolated — swapping in **Groq** (free Llama vision), **OpenRouter** (`:free`
+models), or **Cloudflare Workers AI** (`@cf/meta/llama-3.2-11b-vision-instruct`,
+no external key) is a matter of adding one `gradeWith…` function that returns the
+same JSON shape. Ask and I'll wire one up.
