@@ -1,0 +1,20 @@
+{
+  "name": "findmywatermelon-ai-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serverless Cloudflare Worker that grades a watermelon photo with Claude vision.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240909.0",
+    "typescript": "^5.5.4",
+    "wrangler": "^3.78.0"
+  }
+}

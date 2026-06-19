@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { DetectionResult } from '../lib/detection';
 import type { WatermelonVerdict } from '../lib/scoring';
 import type { ThumpResult } from '../lib/soundAnalysis';
 import { rankOf, bestId, type MelonRecord } from '../lib/compare';
+import { getAiOpinion, type AiOpinion } from '../lib/aiVision';
 import { ResultCard } from './ResultCard';
 import { burstConfetti } from '../lib/confetti';
 
@@ -184,11 +185,20 @@ export function ListenScreen({
 }
 
 /* ---------------------------- Result ----------------------------- */
+const aiVerdictColor: Record<string, string> = {
+  excellent: '#1f8049',
+  good: '#2aa15c',
+  fair: '#d99b00',
+  poor: '#fb3b66',
+};
+
 export function ResultScreen({
   verdict,
   thump,
   compareList,
   currentId,
+  aiPhoto,
+  aiEnabled,
   onScanAnother,
   onOpenCompare,
 }: {
@@ -196,10 +206,15 @@ export function ResultScreen({
   thump: ThumpResult | null;
   compareList: MelonRecord[];
   currentId: number;
+  aiPhoto: string;
+  aiEnabled: boolean;
   onScanAnother: () => void;
   onOpenCompare: () => void;
 }) {
   const confettiRef = useRef<HTMLCanvasElement>(null);
+  const [aiState, setAiState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [aiOpinion, setAiOpinion] = useState<AiOpinion | null>(null);
+  const [aiError, setAiError] = useState('');
 
   useEffect(() => {
     if ((verdict.grade === 'excellent' || verdict.grade === 'good') && confettiRef.current) {
@@ -207,8 +222,21 @@ export function ResultScreen({
     }
   }, [verdict.grade]);
 
+  const askAi = async () => {
+    setAiState('loading');
+    setAiError('');
+    try {
+      setAiOpinion(await getAiOpinion(aiPhoto));
+      setAiState('done');
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'AI request failed.');
+      setAiState('error');
+    }
+  };
+
   const { rank, total } = rankOf(compareList, currentId);
   const isBest = bestId(compareList) === currentId;
+  const showAi = aiEnabled && !!aiPhoto;
 
   return (
     <div className="screen">
@@ -222,6 +250,40 @@ export function ResultScreen({
           </button>
         )}
         <ResultCard verdict={verdict} thump={thump} />
+
+        {showAi && aiState !== 'done' && (
+          <div className="ai-cta">
+            <button className="btn secondary" onClick={askAi} disabled={aiState === 'loading'}>
+              {aiState === 'loading' ? '🤖 Asking the AI…' : '🤖 Ask AI for a second opinion'}
+            </button>
+            {aiState === 'error' ? (
+              <p className="ai-note error-text">{aiError}</p>
+            ) : (
+              <p className="ai-note">Sends just this one photo to the AI. Nothing else leaves your phone.</p>
+            )}
+          </div>
+        )}
+
+        {aiState === 'done' && aiOpinion && (
+          <div className="card ai-card">
+            <div className="ai-head">
+              <span className="ai-badge">🤖 AI second opinion</span>
+              {aiOpinion.isWatermelon && (
+                <span className="ai-score" style={{ color: aiVerdictColor[aiOpinion.verdict] }}>
+                  {aiOpinion.score}
+                </span>
+              )}
+            </div>
+            <p className="ai-headline">{aiOpinion.headline}</p>
+            {aiOpinion.reasons.length > 0 && (
+              <ul className="ai-reasons">
+                {aiOpinion.reasons.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
       <div className="screen-foot">
         <button className="btn primary" onClick={onScanAnother}>

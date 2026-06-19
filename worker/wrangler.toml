@@ -1,0 +1,12 @@
+name = "findmywatermelon-ai"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# The Anthropic API key is a secret, NOT a plaintext var. Set it with:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#
+# Optional: restrict which site may call this Worker (CORS). Defaults to the
+# GitHub Pages origin below. Override per environment if you use a custom domain.
+[vars]
+ALLOWED_ORIGIN = "https://doringber.github.io"
