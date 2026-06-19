@@ -40,8 +40,10 @@ By default the app is 100% on-device. You can *optionally* add an **"Ask AI"**
 button on the result screen that sends one photo to **Claude vision** for a
 second opinion — useful as a sanity check on the heuristics.
 
-- It's a free **Cloudflare Worker** (`/worker`) that holds the Anthropic API
-  key server-side; the browser never sees it. See `worker/README.md` to deploy.
+- It's a free **Cloudflare Worker** (`/worker`) that holds the LLM API key
+  server-side; the browser never sees it. It supports a **free** provider
+  (**Google Gemini**, `gemini-2.0-flash`) or **Claude** (`claude-opus-4-8`,
+  paid, top quality) — same JSON either way. See `worker/README.md` to deploy.
 - The button only appears when you build the frontend with `VITE_AI_ENDPOINT`
   set to the Worker URL. With it unset, nothing changes and no image ever
   leaves the device.
