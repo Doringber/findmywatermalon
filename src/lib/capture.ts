@@ -95,6 +95,35 @@ export function analyzeVideoFrame(
 }
 
 /**
+ * Capture a small JPEG data URL of the locked-on region (or centre square), so
+ * later steps can show the user the exact melon they're judging.
+ */
+export function captureThumbnail(
+  video: HTMLVideoElement,
+  box?: DetectionBox | null,
+  size = 96,
+): string {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  if (!w || !h) return '';
+
+  const side = Math.min(w, h);
+  const baseX = Math.floor((w - side) / 2);
+  const baseY = Math.floor((h - side) / 2);
+  const region = box
+    ? { sx: baseX + box.x * side, sy: baseY + box.y * side, sw: box.w * side, sh: box.h * side }
+    : { sx: baseX, sy: baseY, sw: side, sh: side };
+
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.drawImage(video, region.sx, region.sy, region.sw, region.sh, 0, 0, size, size);
+  return canvas.toDataURL('image/jpeg', 0.8);
+}
+
+/**
  * Listen on the microphone for a short window, capture the loudest moment's
  * spectrum (the knock), and interpret it. Resolves after `durationMs`.
  */

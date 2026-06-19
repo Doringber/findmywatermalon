@@ -2,10 +2,10 @@ import type { WatermelonVerdict } from '../lib/scoring';
 import type { ThumpResult } from '../lib/soundAnalysis';
 
 const gradeColors: Record<string, string> = {
-  excellent: '#1a7f37',
-  good: '#3fae5a',
-  fair: '#e0a800',
-  poor: '#d1242f',
+  excellent: '#1f8049', // rind green
+  good: '#2aa15c',
+  fair: '#d99b00', // field-spot yellow, darkened for contrast
+  poor: '#fb3b66', // flesh pink
 };
 
 const soundBanner: Record<string, { cls: string; text: string }> = {
@@ -35,7 +35,7 @@ export function ResultCard({
         <div
           className="score-ring-fill"
           style={{
-            background: `conic-gradient(${color} ${verdict.score * 3.6}deg, #e8efe9 0deg)`,
+            background: `conic-gradient(${color} ${verdict.score * 3.6}deg, #f0e3e6 0deg)`,
           }}
         >
           <div className="score-ring-inner">
@@ -49,28 +49,30 @@ export function ResultCard({
         {verdict.emoji} {verdict.headline}
       </h2>
 
-      <ul className="checklist">
-        {verdict.checks.map((c) => (
-          <li key={c.id} className={c.passed ? 'check pass' : 'check'}>
-            <span className="check-icon" aria-hidden>
-              {c.passed ? '✅' : '⚪️'}
-            </span>
-            <div className="check-body">
-              <div className="check-head">
-                <span className="check-label">{c.label}</span>
-                <span className="check-score">{Math.round(c.score)}</span>
+      <div className="card">
+        <ul className="checklist">
+          {verdict.checks.map((c) => (
+            <li key={c.id} className={c.passed ? 'check pass' : 'check'}>
+              <span className="check-icon" aria-hidden>
+                {c.passed ? '✅' : '⚪️'}
+              </span>
+              <div className="check-body">
+                <div className="check-head">
+                  <span className="check-label">{c.label}</span>
+                  <span className="check-score">{Math.round(c.score)}</span>
+                </div>
+                <div className="check-bar">
+                  <div
+                    className="check-bar-fill"
+                    style={{ width: `${c.score}%`, background: color }}
+                  />
+                </div>
+                <p className="check-detail">{c.detail}</p>
               </div>
-              <div className="check-bar">
-                <div
-                  className="check-bar-fill"
-                  style={{ width: `${c.score}%`, background: color }}
-                />
-              </div>
-              <p className="check-detail">{c.detail}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
