@@ -47,6 +47,36 @@ function isMelonColor(r: number, g: number, b: number): boolean {
 }
 
 /**
+ * Fraction of watermelon-coloured pixels inside a normalised box region.
+ * Used to confirm that an object the ML detector found is actually a melon.
+ */
+export function melonCoverageInBox(
+  rgba: ArrayLike<number>,
+  width: number,
+  height: number,
+  box: DetectionBox,
+): number {
+  const x0 = Math.max(0, Math.floor(box.x * width));
+  const y0 = Math.max(0, Math.floor(box.y * height));
+  const x1 = Math.min(width, Math.ceil((box.x + box.w) * width));
+  const y1 = Math.min(height, Math.ceil((box.y + box.h) * height));
+  if (x1 <= x0 || y1 <= y0) return 0;
+
+  const stepX = Math.max(1, Math.floor((x1 - x0) / 24));
+  const stepY = Math.max(1, Math.floor((y1 - y0) / 24));
+  let melon = 0;
+  let total = 0;
+  for (let y = y0; y < y1; y += stepY) {
+    for (let x = x0; x < x1; x += stepX) {
+      const i = (y * width + x) * 4;
+      total++;
+      if (isMelonColor(rgba[i], rgba[i + 1], rgba[i + 2])) melon++;
+    }
+  }
+  return total === 0 ? 0 : melon / total;
+}
+
+/**
  * Build a coarse boolean mask: each cell is `true` when most of the pixels it
  * covers are watermelon-coloured.
  */

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildMask, largestComponent, detectWatermelonRegion } from './detection';
+import {
+  buildMask,
+  largestComponent,
+  detectWatermelonRegion,
+  melonCoverageInBox,
+} from './detection';
 
 /**
  * Build a width*height RGBA image where a centred rectangle is watermelon-green
@@ -98,6 +103,17 @@ describe('detectWatermelonRegion', () => {
     expect(result.box!.x).toBeGreaterThan(0.05);
     expect(result.box!.x).toBeLessThan(0.4);
     expect(result.box!.w).toBeGreaterThan(0.4);
+  });
+
+  it('measures melon colour coverage inside a box', () => {
+    const w = 40;
+    const h = 40;
+    // Left half green, right half grey.
+    const data = imageWithGreenRect(w, h, { x: 0, y: 0, w: 20, h: 40 });
+    // A box over the left (green) half should read ~fully melon.
+    expect(melonCoverageInBox(data, w, h, { x: 0, y: 0, w: 0.5, h: 1 })).toBeGreaterThan(0.9);
+    // A box over the right (grey) half should read ~no melon.
+    expect(melonCoverageInBox(data, w, h, { x: 0.5, y: 0, w: 0.5, h: 1 })).toBeLessThan(0.1);
   });
 
   it('normalises the box within [0, 1]', () => {

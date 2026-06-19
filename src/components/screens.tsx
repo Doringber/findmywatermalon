@@ -40,14 +40,18 @@ export function StartScreen({ onStart }: { onStart: () => void }) {
 export function LookScreen({
   videoRef,
   cameraState,
+  mlState,
   detection,
+  holdProgress,
   error,
   onRetry,
   onCapture,
 }: {
   videoRef: RefObject<HTMLVideoElement>;
   cameraState: CameraState;
+  mlState: 'off' | 'loading' | 'on';
   detection: DetectionResult | null;
+  holdProgress: number;
   error: string | null;
   onRetry: () => void;
   onCapture: () => void;
@@ -55,12 +59,19 @@ export function LookScreen({
   const locked = !!detection?.found;
   const box = detection?.box;
   const live = cameraState === 'live';
+  const capturing = locked && holdProgress > 0.05;
 
   return (
     <div className="screen">
       <div className="screen-body">
         <div className="stage">
           <video ref={videoRef} playsInline muted className="camera" />
+
+          {live && mlState !== 'off' && (
+            <span className="ml-badge">
+              {mlState === 'loading' ? '🧠 Loading smart detect…' : '🧠 Smart detect on'}
+            </span>
+          )}
 
           {live && box && (
             <div
@@ -78,12 +89,21 @@ export function LookScreen({
                   ? `🍉 Locked on · ${Math.round((detection?.confidence ?? 0) * 100)}%`
                   : 'Searching…'}
               </span>
+              {locked && (
+                <span className="hold-bar">
+                  <span className="hold-fill" style={{ width: `${holdProgress * 100}%` }} />
+                </span>
+              )}
             </div>
           )}
 
           {live && (
             <p className="stage-hint" aria-live="polite">
-              {locked ? 'Got it! Hold steady and capture' : 'Move closer until the box locks on'}
+              {capturing
+                ? 'Hold steady — capturing…'
+                : locked
+                  ? 'Locked on! Hold still for a second'
+                  : 'Move closer until the box locks on'}
             </p>
           )}
 
@@ -104,7 +124,7 @@ export function LookScreen({
       </div>
       <div className="screen-foot">
         <button className="btn primary" onClick={onCapture} disabled={!live}>
-          {locked ? '📸 Got it!' : live ? '📸 Capture' : 'Opening camera…'}
+          {capturing ? 'Capturing…' : locked ? '📸 Capture now' : live ? '📸 Capture' : 'Opening camera…'}
         </button>
       </div>
     </div>
