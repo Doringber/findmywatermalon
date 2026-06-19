@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import type { DetectionResult } from '../lib/detection';
 import type { WatermelonVerdict } from '../lib/scoring';
 import type { ThumpResult } from '../lib/soundAnalysis';
+import { rankOf, bestId, type MelonRecord } from '../lib/compare';
 import { ResultCard } from './ResultCard';
 import { burstConfetti } from '../lib/confetti';
 
@@ -80,6 +81,8 @@ export function LookScreen({
             </span>
           )}
 
+          {live && !locked && <span className="aim-dot" aria-hidden />}
+
           {live && box && (
             <div
               className={locked ? 'track-box locked' : 'track-box'}
@@ -110,7 +113,7 @@ export function LookScreen({
                 ? 'Hold steady — capturing…'
                 : locked
                   ? 'Locked on! Hold still for a second'
-                  : 'Move closer until the box locks on'}
+                  : 'Aim at one melon in the middle, then hold steady'}
             </p>
           )}
 
@@ -184,11 +187,17 @@ export function ListenScreen({
 export function ResultScreen({
   verdict,
   thump,
-  onRestart,
+  compareList,
+  currentId,
+  onScanAnother,
+  onOpenCompare,
 }: {
   verdict: WatermelonVerdict;
   thump: ThumpResult | null;
-  onRestart: () => void;
+  compareList: MelonRecord[];
+  currentId: number;
+  onScanAnother: () => void;
+  onOpenCompare: () => void;
 }) {
   const confettiRef = useRef<HTMLCanvasElement>(null);
 
@@ -198,16 +207,31 @@ export function ResultScreen({
     }
   }, [verdict.grade]);
 
+  const { rank, total } = rankOf(compareList, currentId);
+  const isBest = bestId(compareList) === currentId;
+
   return (
     <div className="screen">
       <canvas ref={confettiRef} className="confetti" aria-hidden />
       <div className="result">
+        {total > 1 && (
+          <button className="rank-line" onClick={onOpenCompare}>
+            {isBest
+              ? `🏆 Best of ${total} so far — tap to compare`
+              : `#${rank} of ${total} · tap to see the winner`}
+          </button>
+        )}
         <ResultCard verdict={verdict} thump={thump} />
       </div>
       <div className="screen-foot">
-        <button className="btn primary" onClick={onRestart}>
+        <button className="btn primary" onClick={onScanAnother}>
           🍉 Check another melon
         </button>
+        {total > 1 && (
+          <button className="link-skip" onClick={onOpenCompare}>
+            Compare all {total} melons
+          </button>
+        )}
       </div>
     </div>
   );

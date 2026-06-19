@@ -4,6 +4,7 @@ import {
   largestComponent,
   detectWatermelonRegion,
   melonCoverageInBox,
+  centeredness,
 } from './detection';
 
 /**
@@ -114,6 +115,13 @@ describe('detectWatermelonRegion', () => {
     expect(melonCoverageInBox(data, w, h, { x: 0, y: 0, w: 0.5, h: 1 })).toBeGreaterThan(0.9);
     // A box over the right (grey) half should read ~no melon.
     expect(melonCoverageInBox(data, w, h, { x: 0.5, y: 0, w: 0.5, h: 1 })).toBeLessThan(0.1);
+  });
+
+  it('scores a centred box higher than a corner box', () => {
+    const center = centeredness({ x: 0.4, y: 0.4, w: 0.2, h: 0.2 });
+    const corner = centeredness({ x: 0, y: 0, w: 0.2, h: 0.2 });
+    expect(center).toBeGreaterThan(0.95);
+    expect(corner).toBeLessThan(center);
   });
 
   it('normalises the box within [0, 1]', () => {
