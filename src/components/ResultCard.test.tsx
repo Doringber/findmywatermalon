@@ -32,4 +32,26 @@ describe('<ResultCard />', () => {
     expect(screen.getByText('✅')).toBeInTheDocument(); // field spot passed
     expect(screen.getByText('⚪️')).toBeInTheDocument(); // sound not passed
   });
+
+  it('shows a "good choice" sound banner when a ripe thump is supplied', () => {
+    render(
+      <ResultCard
+        verdict={verdict}
+        thump={{
+          dominantHz: 150,
+          bandEnergyRatio: 0.9,
+          verdict: 'ripe',
+          score: 95,
+          message: 'deep thud',
+        }}
+      />,
+    );
+    expect(screen.getByText(/good choice/i)).toBeInTheDocument();
+    expect(screen.getByText('150 Hz')).toBeInTheDocument();
+  });
+
+  it('omits the sound banner when no thump is supplied', () => {
+    render(<ResultCard verdict={verdict} />);
+    expect(screen.queryByText(/good choice/i)).not.toBeInTheDocument();
+  });
 });

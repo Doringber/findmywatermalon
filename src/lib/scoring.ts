@@ -105,6 +105,26 @@ export function scoreSound(thump: ThumpResult | null): Check {
   };
 }
 
+/**
+ * Score the melon's shape from its bounding-box aspect ratio (width / height).
+ * Per the classic guide: rounder, squatter melons ("girls") tend to be sweeter,
+ * while tall, elongated ones ("boys") are more watery and less sweet.
+ */
+export function scoreShape(aspect: number): Check {
+  const elongation = aspect > 0 && isFinite(aspect) ? Math.max(aspect, 1 / aspect) : 1;
+  const score = clamp(100 - (elongation - 1) * 130);
+  const passed = elongation <= 1.25;
+  return {
+    id: 'shape',
+    label: 'Round, sweet shape',
+    score,
+    passed,
+    detail: passed
+      ? 'Nicely rounded — plump, round melons tend to be the sweetest.'
+      : 'Looks elongated/oval — taller melons are often more watery and less sweet.',
+  };
+}
+
 function gradeFor(score: number): { grade: Grade; headline: string; emoji: string } {
   if (score >= 80) {
     return { grade: 'excellent', headline: 'Top pick — grab this one!', emoji: '🍉✨' };
@@ -119,33 +139,45 @@ function gradeFor(score: number): { grade: Grade; headline: string; emoji: strin
 }
 
 /**
- * Produce the overall verdict. Sound is optional; when present it is weighted
- * in, otherwise the vision signals are re-normalised to fill 100%.
+ * Produce the overall verdict. Sound and shape are optional; whichever signals
+ * are present are weighted and re-normalised so the score always fills 0-100.
+ *
+ * @param shapeAspect optional bounding-box aspect ratio (width / height) of the
+ *                    detected melon, used for the shape check.
  */
 export function computeVerdict(
   colors: ColorMetrics,
   thump: ThumpResult | null,
+  shapeAspect?: number,
 ): WatermelonVerdict {
   const fieldSpot = scoreFieldSpot(colors);
   const rind = scoreRindColor(colors);
   const webbing = scoreWebbing(colors);
   const sound = scoreSound(thump);
 
-  const checks = [fieldSpot, rind, webbing, sound];
+  const checks: Check[] = [fieldSpot, rind, webbing, sound];
 
-  // Weights: the field spot and sound are the strongest sweetness signals.
+  // Each present signal gets a raw weight; we normalise by the total so the
+  // field spot and sound (the strongest sweetness signals) dominate.
+  const parts: Array<{ check: Check; weight: number }> = [
+    { check: fieldSpot, weight: 0.34 },
+    { check: rind, weight: 0.16 },
+    { check: webbing, weight: 0.12 },
+  ];
+
   const hasSound = !!thump && thump.verdict !== 'unknown';
-  const weights = hasSound
-    ? { fieldSpot: 0.34, rind: 0.18, webbing: 0.13, sound: 0.35 }
-    : { fieldSpot: 0.52, rind: 0.28, webbing: 0.2, sound: 0 };
+  if (hasSound) parts.push({ check: sound, weight: 0.3 });
 
+  const hasShape = typeof shapeAspect === 'number' && isFinite(shapeAspect) && shapeAspect > 0;
+  if (hasShape) {
+    const shape = scoreShape(shapeAspect as number);
+    checks.push(shape);
+    parts.push({ check: shape, weight: 0.15 });
+  }
+
+  const totalWeight = parts.reduce((sum, p) => sum + p.weight, 0);
   const score = clamp(
-    Math.round(
-      fieldSpot.score * weights.fieldSpot +
-        rind.score * weights.rind +
-        webbing.score * weights.webbing +
-        sound.score * weights.sound,
-    ),
+    Math.round(parts.reduce((sum, p) => sum + p.check.score * p.weight, 0) / totalWeight),
   );
 
   const { grade, headline, emoji } = gradeFor(score);

@@ -112,7 +112,7 @@ export function analyzeThump(
       bandEnergyRatio,
       verdict: 'overripe',
       score: 45,
-      message: 'Very dull, dead thud — this one may be overripe or mealy inside.',
+      message: 'Very dull, dead thud — may be overripe or mealy inside. Try another. ⚠️',
     };
   }
 
@@ -124,7 +124,7 @@ export function analyzeThump(
       bandEnergyRatio,
       verdict: 'ripe',
       score,
-      message: 'Deep, hollow thud — a great sign of a juicy, ripe melon! 🥁',
+      message: 'Deep, hollow thud — sounds ripe and juicy. Good choice! ✅',
     };
   }
 
@@ -135,6 +135,6 @@ export function analyzeThump(
     bandEnergyRatio,
     verdict: 'unripe',
     score,
-    message: 'High, ringing knock — this melon is probably under-ripe.',
+    message: 'High, ringing knock — this one sounds under-ripe. Try another. ❌',
   };
 }
