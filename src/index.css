@@ -59,13 +59,63 @@ body {
   display: block;
 }
 
-.reticle {
+/* Live tracking box that follows the detected watermelon. */
+.track-box {
   position: absolute;
-  inset: 15%;
-  border: 3px dashed rgba(255, 255, 255, 0.85);
-  border-radius: 50%;
+  border: 3px dashed rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
   pointer-events: none;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  transition: all 0.12s linear;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+.track-box.locked {
+  border-style: solid;
+  border-color: #46d369;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.25),
+    0 0 18px rgba(70, 211, 105, 0.6);
+  animation: lockPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes lockPulse {
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(0, 0, 0, 0.25),
+      0 0 26px rgba(70, 211, 105, 0.9);
+  }
+}
+
+.track-tag {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.track-box.locked .track-tag {
+  background: #1a7f37;
+}
+
+.hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  text-align: center;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  padding: 0 12px;
 }
 
 .stage-overlay {
