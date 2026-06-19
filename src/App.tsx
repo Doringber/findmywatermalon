@@ -9,16 +9,24 @@ import {
 import {
   detectWatermelonRegion,
   melonCoverageInBox,
+  centeredness,
   type DetectionResult,
   type DetectionBox,
 } from './lib/detection';
 import { loadMlDetector, detectObjects, chooseBestBox, combinedScore } from './lib/mlDetection';
 import { computeVerdict, type WatermelonVerdict } from './lib/scoring';
+import { type MelonRecord } from './lib/compare';
 import type { ColorMetrics } from './lib/colorAnalysis';
 import type { ThumpResult } from './lib/soundAnalysis';
 import { Stepper, type Step } from './components/Stepper';
 import { StartScreen, LookScreen, ListenScreen, ResultScreen } from './components/screens';
 import { GuideSheet } from './components/GuideSheet';
+import { CompareSheet } from './components/CompareSheet';
+
+/** A blob covering more than this fraction of frame is treated as a pile. */
+const PILE_COVERAGE = 0.55;
+/** Centred reticle box used to aim at one melon when facing a pile. */
+const AIM_BOX: DetectionBox = { x: 0.28, y: 0.28, w: 0.44, h: 0.44 };
 
 type CameraState = 'idle' | 'starting' | 'live' | 'error';
 export type MlState = 'off' | 'loading' | 'on';
@@ -51,6 +59,10 @@ export function App() {
   const [thumb, setThumb] = useState('');
   const [listening, setListening] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareList, setCompareList] = useState<MelonRecord[]>([]);
+  const [currentId, setCurrentId] = useState(0);
+  const melonIdRef = useRef(0);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -138,6 +150,7 @@ export function App() {
             const cands = objs.map((o) => ({
               ...o,
               melonScore: melonCoverageInBox(frame.data, frame.size, frame.size, o.box),
+              centerScore: centeredness(o.box),
             }));
             const best = chooseBestBox(cands);
             mlPickRef.current = best
@@ -174,12 +187,23 @@ export function App() {
         const frame = grabSquareFrame(videoRef.current, 144);
         const colorRes = detectWatermelonRegion(frame.data, frame.size, frame.size);
 
+        // In a packed bin the colour blob fills the frame; fall back to a
+        // centred reticle so the user can aim at one melon.
+        let colorBox = colorRes.box;
+        let colorFound = colorRes.found;
+        let colorConf = colorRes.confidence;
+        if (colorRes.coverage > PILE_COVERAGE) {
+          colorBox = AIM_BOX;
+          colorFound = true;
+          colorConf = Math.max(colorConf, 0.55);
+        }
+
         const now = performance.now();
         const ml = mlPickRef.current;
         const mlFresh = !!ml && now - ml.t < ML_FRESH;
-        const targetBox = mlFresh ? ml!.box : colorRes.box;
-        const found = mlFresh ? true : colorRes.found;
-        const confidence = mlFresh ? Math.max(colorRes.confidence, ml!.score) : colorRes.confidence;
+        const targetBox = mlFresh ? ml!.box : colorBox;
+        const found = mlFresh ? true : colorFound;
+        const confidence = mlFresh ? Math.max(colorConf, ml!.score) : colorConf;
 
         if (targetBox) {
           const prev = lastBoxRef.current ?? targetBox;
@@ -223,31 +247,56 @@ export function App() {
     setStep('look');
   }, []);
 
+  // Record the finished melon into the comparison list, then show the result.
+  const finishMelon = useCallback(
+    (finalVerdict: WatermelonVerdict) => {
+      const id = ++melonIdRef.current;
+      setCurrentId(id);
+      setCompareList((prev) => [
+        ...prev,
+        {
+          id,
+          score: finalVerdict.score,
+          grade: finalVerdict.grade,
+          thumb,
+          headline: finalVerdict.headline,
+        },
+      ]);
+      setStep('result');
+    },
+    [thumb],
+  );
+
   const doThump = useCallback(async () => {
     setListening(true);
     setError(null);
     try {
       const result = await recordThump();
       setThump(result);
-      if (colors) setVerdict(computeVerdict(colors, result, shape));
-      setStep('result');
+      const v = colors ? computeVerdict(colors, result, shape) : verdict;
+      if (v) {
+        setVerdict(v);
+        finishMelon(v);
+      }
     } catch {
       setError('Microphone unavailable — skipping the sound test.');
-      setStep('result');
+      if (verdict) finishMelon(verdict);
     } finally {
       setListening(false);
     }
-  }, [colors, shape]);
+  }, [colors, shape, verdict, finishMelon]);
 
   const skipSound = useCallback(() => {
     setThump(null);
-    if (colors) setVerdict(computeVerdict(colors, null, shape));
-    setStep('result');
-  }, [colors, shape]);
+    const v = colors ? computeVerdict(colors, null, shape) : verdict;
+    if (v) {
+      setVerdict(v);
+      finishMelon(v);
+    }
+  }, [colors, shape, verdict, finishMelon]);
 
-  const restart = useCallback(() => {
-    stopCamera();
-    setCameraState('idle');
+  // Reset per-melon state (keeps the comparison list) and aim at the next one.
+  const resetMelon = useCallback(() => {
     setDetection(null);
     setHoldProgress(0);
     setColors(null);
@@ -260,8 +309,22 @@ export function App() {
     mlPickRef.current = null;
     lockStartRef.current = null;
     capturedGuardRef.current = false;
+  }, []);
+
+  const scanAnother = useCallback(() => {
+    resetMelon();
+    setStep('look');
+  }, [resetMelon]);
+
+  const startOver = useCallback(() => {
+    stopCamera();
+    setCameraState('idle');
+    resetMelon();
+    setCompareList([]);
+    setCurrentId(0);
+    setCompareOpen(false);
     setStep('start');
-  }, [stopCamera]);
+  }, [stopCamera, resetMelon]);
 
   return (
     <div className="app">
@@ -297,7 +360,14 @@ export function App() {
       )}
 
       {step === 'result' && verdict && (
-        <ResultScreen verdict={verdict} thump={thump} onRestart={restart} />
+        <ResultScreen
+          verdict={verdict}
+          thump={thump}
+          compareList={compareList}
+          currentId={currentId}
+          onScanAnother={scanAnother}
+          onOpenCompare={() => setCompareOpen(true)}
+        />
       )}
 
       {error && step !== 'look' && (
@@ -307,6 +377,14 @@ export function App() {
       )}
 
       {guideOpen && <GuideSheet onClose={() => setGuideOpen(false)} />}
+      {compareOpen && (
+        <CompareSheet
+          list={compareList}
+          currentId={currentId}
+          onClose={() => setCompareOpen(false)}
+          onStartOver={startOver}
+        />
+      )}
     </div>
   );
 }

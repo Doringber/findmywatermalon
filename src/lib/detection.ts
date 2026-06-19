@@ -183,6 +183,18 @@ function clamp01(n: number): number {
 }
 
 /**
+ * How centred a box is in the frame, 1 = dead centre, 0 = far corner. Used to
+ * favour the melon the user is aiming at when several are in view (a shop bin).
+ */
+export function centeredness(box: DetectionBox): number {
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const dist = Math.hypot(cx - 0.5, cy - 0.5);
+  // Max distance from centre to a corner is ~0.707.
+  return clamp01(1 - dist / 0.707);
+}
+
+/**
  * Detect the dominant watermelon region in an RGBA image.
  */
 export function detectWatermelonRegion(

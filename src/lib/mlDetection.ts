@@ -21,6 +21,8 @@ export interface MlCandidate {
   objectScore: number;
   /** Fraction of the box that reads as watermelon colour [0, 1]. */
   melonScore: number;
+  /** How centred the box is in the frame [0, 1] — favours the aimed melon. */
+  centerScore?: number;
   className: string;
 }
 
@@ -68,9 +70,16 @@ export async function detectObjects(
   }));
 }
 
-/** Combined score that prioritises melon colour but rewards model confidence. */
-export function combinedScore(c: { objectScore: number; melonScore: number }): number {
-  return c.melonScore * 0.7 + c.objectScore * 0.3;
+/**
+ * Combined score: melon colour matters most, then how centred the object is
+ * (the melon the user is aiming at in a crowded bin), then model confidence.
+ */
+export function combinedScore(c: {
+  objectScore: number;
+  melonScore: number;
+  centerScore?: number;
+}): number {
+  return c.melonScore * 0.5 + (c.centerScore ?? 0) * 0.3 + c.objectScore * 0.2;
 }
 
 /**
