@@ -13,8 +13,15 @@ export function StartScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="screen">
       <div className="screen-body">
-        <div className="hero-melon" aria-hidden>
-          🍉
+        <div className="melon-slice" aria-hidden>
+          <span className="rind" />
+          <span className="ring" />
+          <span className="flesh" />
+          <span className="seed seed-1" />
+          <span className="seed seed-2" />
+          <span className="seed seed-3" />
+          <span className="seed seed-4" />
+          <span className="seed seed-5" />
         </div>
         <div>
           <h1 className="start-title">

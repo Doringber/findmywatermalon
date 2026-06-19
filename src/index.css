@@ -232,24 +232,82 @@ h3 {
 }
 
 /* ---------- start screen ---------- */
-.hero-melon {
-  width: min(62vw, 230px);
-  aspect-ratio: 1;
-  margin: 0 auto;
+/* CSS watermelon slice: nested semicircles (rind → pale ring → flesh) + seeds.
+   Each layer keeps a 2:1 box so the top stays a true semicircle at any size. */
+.melon-slice {
+  position: relative;
+  width: min(74vw, 280px);
+  height: calc(min(74vw, 280px) / 2);
+  margin: 10px auto 2px;
+  animation: bob 3.6s ease-in-out infinite;
+  filter: drop-shadow(0 16px 20px rgba(43, 26, 32, 0.18));
+}
+
+.melon-slice .rind,
+.melon-slice .ring,
+.melon-slice .flesh {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+}
+
+.melon-slice .rind {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(#2aa15c, #1f8049);
+}
+
+.melon-slice .ring {
+  width: 88%;
+  height: 88%;
+  background: #eafbe4;
+}
+
+.melon-slice .flesh {
+  width: 76%;
+  height: 76%;
+  background: radial-gradient(120% 150% at 50% 100%, #ff708e, #fb3b66 70%);
+}
+
+.melon-slice .seed {
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  background: #2b1a20;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 38%, #ff6f8d 0 38%, #fb3b66 38% 62%, transparent 62%),
-    conic-gradient(from 90deg, #1f8049, #2aa15c, #1f8049, #176a3b, #1f8049);
-  display: grid;
-  place-items: center;
-  font-size: clamp(48px, 16vw, 84px);
-  box-shadow: var(--shadow);
-  animation: bob 3.4s ease-in-out infinite;
+}
+
+.melon-slice .seed-1 {
+  bottom: 30%;
+  left: 50%;
+  transform: translateX(-50%) rotate(0deg);
+}
+.melon-slice .seed-2 {
+  bottom: 22%;
+  left: 36%;
+  transform: rotate(-22deg);
+}
+.melon-slice .seed-3 {
+  bottom: 22%;
+  left: 62%;
+  transform: rotate(22deg);
+}
+.melon-slice .seed-4 {
+  bottom: 10%;
+  left: 28%;
+  transform: rotate(-32deg);
+}
+.melon-slice .seed-5 {
+  bottom: 10%;
+  left: 70%;
+  transform: rotate(32deg);
 }
 
 @keyframes bob {
   50% {
-    transform: translateY(-12px) rotate(-3deg);
+    transform: translateY(-12px) rotate(-2deg);
   }
 }
 
