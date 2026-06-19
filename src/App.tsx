@@ -6,7 +6,13 @@ import {
   grabSquareFrame,
   captureThumbnail,
 } from './lib/capture';
-import { detectWatermelonRegion, type DetectionResult } from './lib/detection';
+import {
+  detectWatermelonRegion,
+  melonCoverageInBox,
+  type DetectionResult,
+  type DetectionBox,
+} from './lib/detection';
+import { loadMlDetector, detectObjects, chooseBestBox, combinedScore } from './lib/mlDetection';
 import { computeVerdict, type WatermelonVerdict } from './lib/scoring';
 import type { ColorMetrics } from './lib/colorAnalysis';
 import type { ThumpResult } from './lib/soundAnalysis';
@@ -15,22 +21,29 @@ import { StartScreen, LookScreen, ListenScreen, ResultScreen } from './component
 import { GuideSheet } from './components/GuideSheet';
 
 type CameraState = 'idle' | 'starting' | 'live' | 'error';
+export type MlState = 'off' | 'loading' | 'on';
 
-/** Smoothing factor for the tracking box (0 = frozen, 1 = no smoothing). */
-const SMOOTH = 0.35;
-/** How often to run detection, in ms. */
-const DETECT_INTERVAL = 120;
+const SMOOTH = 0.35; // tracking-box smoothing (0 = frozen, 1 = none)
+const DETECT_INTERVAL = 120; // colour-tracker cadence (ms)
+const ML_INTERVAL = 450; // ML detection cadence (ms)
+const ML_FRESH = 1000; // how long an ML pick stays valid (ms)
+const LOCK_HOLD = 900; // hold-to-auto-capture duration (ms)
 
 export function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
-  const lastBoxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const lastBoxRef = useRef<DetectionBox | null>(null);
+  const mlPickRef = useRef<{ box: DetectionBox; score: number; t: number } | null>(null);
+  const lockStartRef = useRef<number | null>(null);
+  const capturedGuardRef = useRef(false);
 
   const [step, setStep] = useState<Step>('start');
   const [cameraState, setCameraState] = useState<CameraState>('idle');
+  const [mlState, setMlState] = useState<MlState>('off');
   const [error, setError] = useState<string | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [holdProgress, setHoldProgress] = useState(0);
   const [colors, setColors] = useState<ColorMetrics | null>(null);
   const [shape, setShape] = useState<number | undefined>(undefined);
   const [thump, setThump] = useState<ThumpResult | null>(null);
@@ -65,12 +78,91 @@ export function App() {
     }
   }, []);
 
+  // Capture the locked-on melon, then advance to the sound step.
+  const capture = useCallback(() => {
+    if (!videoRef.current || capturedGuardRef.current) return;
+    capturedGuardRef.current = true;
+    try {
+      const box = detection?.found ? detection.box : null;
+      const aspect = box && box.h > 0 ? box.w / box.h : undefined;
+      const c = analyzeVideoFrame(videoRef.current, box);
+      setColors(c);
+      setShape(aspect);
+      setThumb(captureThumbnail(videoRef.current, box));
+      setVerdict(computeVerdict(c, null, aspect));
+      stopCamera();
+      setCameraState('idle');
+      setDetection(null);
+      setHoldProgress(0);
+      lastBoxRef.current = null;
+      mlPickRef.current = null;
+      setStep('listen');
+    } catch (e) {
+      capturedGuardRef.current = false;
+      setError(e instanceof Error ? e.message : 'Could not read that frame — try again.');
+    }
+  }, [detection, stopCamera]);
+
+  // Keep the detection loop calling the freshest capture without re-subscribing.
+  const captureRef = useRef(capture);
+  captureRef.current = capture;
+
   // Turn the camera on when we enter the Look step.
   useEffect(() => {
     if (step === 'look' && cameraState === 'idle') void enableCamera();
   }, [step, cameraState, enableCamera]);
 
-  // Live watermelon-finder loop while looking: tracks the melon and locks on.
+  // Load the on-device ML detector and poll it for object boxes while looking.
+  useEffect(() => {
+    if (step !== 'look') return;
+    let cancelled = false;
+    let timer: number | undefined;
+    let busy = false;
+
+    setMlState((s) => (s === 'on' ? 'on' : 'loading'));
+    loadMlDetector().then((ok) => {
+      if (cancelled) return;
+      if (!ok) {
+        setMlState('off');
+        return;
+      }
+      setMlState('on');
+      const run = async () => {
+        if (cancelled) return;
+        if (!busy && videoRef.current && cameraState === 'live') {
+          busy = true;
+          try {
+            const frame = grabSquareFrame(videoRef.current, 224);
+            const img = new ImageData(new Uint8ClampedArray(frame.data), frame.size, frame.size);
+            const objs = await detectObjects(img);
+            const cands = objs.map((o) => ({
+              ...o,
+              melonScore: melonCoverageInBox(frame.data, frame.size, frame.size, o.box),
+            }));
+            const best = chooseBestBox(cands);
+            mlPickRef.current = best
+              ? { box: best.box, score: combinedScore(best), t: performance.now() }
+              : null;
+          } catch {
+            mlPickRef.current = null;
+          } finally {
+            busy = false;
+          }
+        }
+        timer = window.setTimeout(run, ML_INTERVAL);
+      };
+      void run();
+    });
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      mlPickRef.current = null;
+    };
+  }, [step, cameraState]);
+
+  // Live colour tracker (fast). Merges the latest ML pick and handles
+  // hold-to-auto-capture once a lock is held steady.
   useEffect(() => {
     if (step !== 'look' || cameraState !== 'live') return;
     let last = 0;
@@ -80,20 +172,39 @@ export function App() {
       last = t;
       try {
         const frame = grabSquareFrame(videoRef.current, 144);
-        const result = detectWatermelonRegion(frame.data, frame.size, frame.size);
-        if (result.box) {
-          const prev = lastBoxRef.current ?? result.box;
+        const colorRes = detectWatermelonRegion(frame.data, frame.size, frame.size);
+
+        const now = performance.now();
+        const ml = mlPickRef.current;
+        const mlFresh = !!ml && now - ml.t < ML_FRESH;
+        const targetBox = mlFresh ? ml!.box : colorRes.box;
+        const found = mlFresh ? true : colorRes.found;
+        const confidence = mlFresh ? Math.max(colorRes.confidence, ml!.score) : colorRes.confidence;
+
+        if (targetBox) {
+          const prev = lastBoxRef.current ?? targetBox;
           const smoothed = {
-            x: prev.x + (result.box.x - prev.x) * SMOOTH,
-            y: prev.y + (result.box.y - prev.y) * SMOOTH,
-            w: prev.w + (result.box.w - prev.w) * SMOOTH,
-            h: prev.h + (result.box.h - prev.h) * SMOOTH,
+            x: prev.x + (targetBox.x - prev.x) * SMOOTH,
+            y: prev.y + (targetBox.y - prev.y) * SMOOTH,
+            w: prev.w + (targetBox.w - prev.w) * SMOOTH,
+            h: prev.h + (targetBox.h - prev.h) * SMOOTH,
           };
           lastBoxRef.current = smoothed;
-          setDetection({ ...result, box: smoothed });
+          setDetection({ found, confidence, coverage: colorRes.coverage, box: smoothed });
         } else {
           lastBoxRef.current = null;
-          setDetection(result);
+          setDetection({ found: false, confidence: 0, coverage: 0, box: null });
+        }
+
+        // Hold-to-capture: a steady lock for LOCK_HOLD ms snaps automatically.
+        if (found) {
+          if (lockStartRef.current == null) lockStartRef.current = now;
+          const held = now - lockStartRef.current;
+          setHoldProgress(Math.min(1, held / LOCK_HOLD));
+          if (held >= LOCK_HOLD) captureRef.current();
+        } else {
+          lockStartRef.current = null;
+          setHoldProgress(0);
         }
       } catch {
         /* frame not ready — ignore */
@@ -107,29 +218,10 @@ export function App() {
 
   const start = useCallback(() => {
     setError(null);
+    capturedGuardRef.current = false;
+    lockStartRef.current = null;
     setStep('look');
   }, []);
-
-  // Capture the locked-on melon, then move to the sound step.
-  const capture = useCallback(() => {
-    if (!videoRef.current) return;
-    try {
-      const box = detection?.found ? detection.box : null;
-      const aspect = box && box.h > 0 ? box.w / box.h : undefined;
-      const c = analyzeVideoFrame(videoRef.current, box);
-      setColors(c);
-      setShape(aspect);
-      setThumb(captureThumbnail(videoRef.current, box));
-      setVerdict(computeVerdict(c, null, aspect));
-      stopCamera();
-      setCameraState('idle');
-      setDetection(null);
-      lastBoxRef.current = null;
-      setStep('listen');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read that frame — try again.');
-    }
-  }, [detection, stopCamera]);
 
   const doThump = useCallback(async () => {
     setListening(true);
@@ -157,6 +249,7 @@ export function App() {
     stopCamera();
     setCameraState('idle');
     setDetection(null);
+    setHoldProgress(0);
     setColors(null);
     setShape(undefined);
     setThump(null);
@@ -164,6 +257,9 @@ export function App() {
     setThumb('');
     setError(null);
     lastBoxRef.current = null;
+    mlPickRef.current = null;
+    lockStartRef.current = null;
+    capturedGuardRef.current = false;
     setStep('start');
   }, [stopCamera]);
 
@@ -172,7 +268,11 @@ export function App() {
       <div className="topbar">
         <span className="brand">🍉 Find My Watermelon</span>
         <Stepper step={step} />
-        <button className="icon-btn" onClick={() => setGuideOpen(true)} aria-label="How to pick a watermelon">
+        <button
+          className="icon-btn"
+          onClick={() => setGuideOpen(true)}
+          aria-label="How to pick a watermelon"
+        >
           ?
         </button>
       </div>
@@ -183,7 +283,9 @@ export function App() {
         <LookScreen
           videoRef={videoRef}
           cameraState={cameraState}
+          mlState={mlState}
           detection={detection}
+          holdProgress={holdProgress}
           error={error}
           onRetry={enableCamera}
           onCapture={capture}

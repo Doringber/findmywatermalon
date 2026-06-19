@@ -36,6 +36,16 @@ listens through the microphone and finds the dominant frequency of your knock.
 
 ## How it works
 
+- **Guided flow** — a full-screen, one-action-per-step hunt (Start → Look →
+  Listen → Result). The camera **auto-captures** when it holds a lock on the
+  melon for ~1s (no tap needed), and a tap-to-open info sheet holds the full
+  picking guide.
+- **Smart detect (on-device ML)** — `src/lib/mlDetection.ts` lazy-loads
+  TensorFlow.js + COCO-SSD to localise the dominant object in frame; our colour
+  score confirms it's actually a watermelon. Pretrained models have no
+  "watermelon" class, so the model does localisation and the colour/shape/sound
+  logic judges ripeness. Everything runs in the browser — nothing is uploaded —
+  and it falls back to the pure colour-blob detector if the model can't load.
 - **Vision** — `src/lib/colorAnalysis.ts` converts pixels to HSV and classifies
   them into green rind, dark stripes, and creamy yellow field-spot buckets.
 - **Sound** — `src/lib/soundAnalysis.ts` takes an FFT magnitude spectrum and
