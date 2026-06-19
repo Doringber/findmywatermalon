@@ -16,6 +16,7 @@ import {
 import { loadMlDetector, detectObjects, chooseBestBox, combinedScore } from './lib/mlDetection';
 import { computeVerdict, type WatermelonVerdict } from './lib/scoring';
 import { type MelonRecord } from './lib/compare';
+import { aiEnabled } from './lib/aiVision';
 import type { ColorMetrics } from './lib/colorAnalysis';
 import type { ThumpResult } from './lib/soundAnalysis';
 import { Stepper, type Step } from './components/Stepper';
@@ -57,6 +58,7 @@ export function App() {
   const [thump, setThump] = useState<ThumpResult | null>(null);
   const [verdict, setVerdict] = useState<WatermelonVerdict | null>(null);
   const [thumb, setThumb] = useState('');
+  const [aiPhoto, setAiPhoto] = useState('');
   const [listening, setListening] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -101,6 +103,7 @@ export function App() {
       setColors(c);
       setShape(aspect);
       setThumb(captureThumbnail(videoRef.current, box));
+      setAiPhoto(captureThumbnail(videoRef.current, box, 512));
       setVerdict(computeVerdict(c, null, aspect));
       stopCamera();
       setCameraState('idle');
@@ -304,6 +307,7 @@ export function App() {
     setThump(null);
     setVerdict(null);
     setThumb('');
+    setAiPhoto('');
     setError(null);
     lastBoxRef.current = null;
     mlPickRef.current = null;
@@ -365,6 +369,8 @@ export function App() {
           thump={thump}
           compareList={compareList}
           currentId={currentId}
+          aiPhoto={aiPhoto}
+          aiEnabled={aiEnabled()}
           onScanAnother={scanAnother}
           onOpenCompare={() => setCompareOpen(true)}
         />

@@ -199,6 +199,12 @@ h3 {
   cursor: not-allowed;
 }
 
+.btn.secondary {
+  background: #fff;
+  color: var(--rind);
+  border: 2px solid var(--rind);
+}
+
 .btn.ghost {
   background: transparent;
   color: var(--muted);
@@ -641,6 +647,64 @@ h3 {
   font-weight: 700;
   font-size: 1.5rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* AI second opinion */
+.ai-cta {
+  text-align: center;
+}
+
+.ai-note {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.ai-note.error-text {
+  color: var(--accent-press);
+  font-weight: 700;
+}
+
+.ai-card {
+  border: 1px solid #f0dfe3;
+}
+
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ai-badge {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ai-score {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-headline {
+  margin: 0 0 8px;
+  font-weight: 800;
+}
+
+.ai-reasons {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.ai-reasons li {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 @keyframes pop {
