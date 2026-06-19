@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { startCamera, analyzeVideoFrame, recordThump, grabSquareFrame } from './lib/capture';
+import {
+  startCamera,
+  analyzeVideoFrame,
+  recordThump,
+  grabSquareFrame,
+  captureThumbnail,
+} from './lib/capture';
 import { detectWatermelonRegion, type DetectionResult } from './lib/detection';
 import { computeVerdict, type WatermelonVerdict } from './lib/scoring';
 import type { ColorMetrics } from './lib/colorAnalysis';
 import type { ThumpResult } from './lib/soundAnalysis';
-import { ResultCard } from './components/ResultCard';
-import { Guide } from './components/Guide';
+import { Stepper, type Step } from './components/Stepper';
+import { StartScreen, LookScreen, ListenScreen, ResultScreen } from './components/screens';
+import { GuideSheet } from './components/GuideSheet';
 
 type CameraState = 'idle' | 'starting' | 'live' | 'error';
 
@@ -20,6 +27,7 @@ export function App() {
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
+  const [step, setStep] = useState<Step>('start');
   const [cameraState, setCameraState] = useState<CameraState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
@@ -27,7 +35,14 @@ export function App() {
   const [shape, setShape] = useState<number | undefined>(undefined);
   const [thump, setThump] = useState<ThumpResult | null>(null);
   const [verdict, setVerdict] = useState<WatermelonVerdict | null>(null);
+  const [thumb, setThumb] = useState('');
   const [listening, setListening] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }, []);
 
   const enableCamera = useCallback(async () => {
     setError(null);
@@ -44,15 +59,20 @@ export function App() {
       setCameraState('error');
       setError(
         e instanceof DOMException && e.name === 'NotAllowedError'
-          ? 'Camera permission was denied. Allow camera access and try again.'
+          ? 'Camera access was blocked. Allow the camera in your browser, then try again.'
           : 'Could not start the camera on this device.',
       );
     }
   }, []);
 
-  // Live watermelon-finder loop: scans frames, tracks the melon, "locks on".
+  // Turn the camera on when we enter the Look step.
   useEffect(() => {
-    if (cameraState !== 'live') return;
+    if (step === 'look' && cameraState === 'idle') void enableCamera();
+  }, [step, cameraState, enableCamera]);
+
+  // Live watermelon-finder loop while looking: tracks the melon and locks on.
+  useEffect(() => {
+    if (step !== 'look' || cameraState !== 'live') return;
     let last = 0;
     const loop = (t: number) => {
       rafRef.current = requestAnimationFrame(loop);
@@ -61,7 +81,6 @@ export function App() {
       try {
         const frame = grabSquareFrame(videoRef.current, 144);
         const result = detectWatermelonRegion(frame.data, frame.size, frame.size);
-        // Smooth the box so it glides instead of jittering.
         if (result.box) {
           const prev = lastBoxRef.current ?? result.box;
           const smoothed = {
@@ -77,34 +96,40 @@ export function App() {
           setDetection(result);
         }
       } catch {
-        /* frame not ready yet — ignore */
+        /* frame not ready — ignore */
       }
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [cameraState]);
+  }, [step, cameraState]);
 
-  useEffect(() => {
-    return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  const start = useCallback(() => {
+    setError(null);
+    setStep('look');
   }, []);
 
-  const scan = useCallback(() => {
+  // Capture the locked-on melon, then move to the sound step.
+  const capture = useCallback(() => {
     if (!videoRef.current) return;
     try {
-      // Score the locked-on region when we have one, else the centre.
       const box = detection?.found ? detection.box : null;
-      // Shape from the detection box aspect ratio (the square crop keeps it true).
       const aspect = box && box.h > 0 ? box.w / box.h : undefined;
       const c = analyzeVideoFrame(videoRef.current, box);
       setColors(c);
       setShape(aspect);
-      setVerdict(computeVerdict(c, thump, aspect));
+      setThumb(captureThumbnail(videoRef.current, box));
+      setVerdict(computeVerdict(c, null, aspect));
+      stopCamera();
+      setCameraState('idle');
+      setDetection(null);
+      lastBoxRef.current = null;
+      setStep('listen');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not analyse the frame.');
+      setError(e instanceof Error ? e.message : 'Could not read that frame — try again.');
     }
-  }, [thump, detection]);
+  }, [detection, stopCamera]);
 
   const doThump = useCallback(async () => {
     setListening(true);
@@ -113,96 +138,73 @@ export function App() {
       const result = await recordThump();
       setThump(result);
       if (colors) setVerdict(computeVerdict(colors, result, shape));
+      setStep('result');
     } catch {
-      setError('Microphone unavailable — the sound test was skipped.');
+      setError('Microphone unavailable — skipping the sound test.');
+      setStep('result');
     } finally {
       setListening(false);
     }
   }, [colors, shape]);
 
-  const locked = !!detection?.found;
-  const box = detection?.box;
+  const skipSound = useCallback(() => {
+    setThump(null);
+    if (colors) setVerdict(computeVerdict(colors, null, shape));
+    setStep('result');
+  }, [colors, shape]);
+
+  const restart = useCallback(() => {
+    stopCamera();
+    setCameraState('idle');
+    setDetection(null);
+    setColors(null);
+    setShape(undefined);
+    setThump(null);
+    setVerdict(null);
+    setThumb('');
+    setError(null);
+    lastBoxRef.current = null;
+    setStep('start');
+  }, [stopCamera]);
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🍉 Find My Watermelon</h1>
-        <p>Point your camera at a watermelon — the AI finds it and scores how sweet it is.</p>
-      </header>
+      <div className="topbar">
+        <span className="brand">🍉 Find My Watermelon</span>
+        <Stepper step={step} />
+        <button className="icon-btn" onClick={() => setGuideOpen(true)} aria-label="How to pick a watermelon">
+          ?
+        </button>
+      </div>
 
-      <main>
-        <div className="stage">
-          <video ref={videoRef} playsInline muted className="camera" />
+      {step === 'start' && <StartScreen onStart={start} />}
 
-          {cameraState === 'live' && box && (
-            <div
-              className={locked ? 'track-box locked' : 'track-box'}
-              style={{
-                left: `${box.x * 100}%`,
-                top: `${box.y * 100}%`,
-                width: `${box.w * 100}%`,
-                height: `${box.h * 100}%`,
-              }}
-              aria-hidden
-            >
-              <span className="track-tag">
-                {locked
-                  ? `🍉 Locked on · ${Math.round((detection?.confidence ?? 0) * 100)}%`
-                  : 'Searching…'}
-              </span>
-            </div>
-          )}
+      {step === 'look' && (
+        <LookScreen
+          videoRef={videoRef}
+          cameraState={cameraState}
+          detection={detection}
+          error={error}
+          onRetry={enableCamera}
+          onCapture={capture}
+        />
+      )}
 
-          {cameraState === 'live' && (
-            <div className="hint" aria-live="polite">
-              {locked
-                ? 'Watermelon detected — hold steady and tap Scan'
-                : 'Move closer until the box locks onto a watermelon'}
-            </div>
-          )}
+      {step === 'listen' && (
+        <ListenScreen thumb={thumb} listening={listening} onListen={doThump} onSkip={skipSound} />
+      )}
 
-          {cameraState !== 'live' && (
-            <div className="stage-overlay">
-              {cameraState === 'idle' && (
-                <button className="btn primary" onClick={enableCamera}>
-                  📷 Open camera
-                </button>
-              )}
-              {cameraState === 'starting' && <span className="spinner">Starting camera…</span>}
-              {cameraState === 'error' && (
-                <button className="btn primary" onClick={enableCamera}>
-                  🔄 Retry camera
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+      {step === 'result' && verdict && (
+        <ResultScreen verdict={verdict} thump={thump} onRestart={restart} />
+      )}
 
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
+      {error && step !== 'look' && (
+        <p className="error" role="alert" style={{ margin: '0 20px 16px' }}>
+          {error}
+        </p>
+      )}
 
-        {cameraState === 'live' && (
-          <div className="controls">
-            <button className="btn primary" onClick={scan} disabled={!locked}>
-              {locked ? '🔍 Scan this watermelon' : '🔍 Aim at a watermelon…'}
-            </button>
-            <button className="btn secondary" onClick={doThump} disabled={listening}>
-              {listening ? '🎙️ Listening… tap it!' : '🥁 Add thump test'}
-            </button>
-          </div>
-        )}
-
-        {verdict && <ResultCard verdict={verdict} thump={thump} />}
-
-        <Guide />
-      </main>
-
-      <footer className="app-footer">
-        <p>Runs entirely on your device — no photos or audio ever leave your phone. 🔒</p>
-      </footer>
+      {guideOpen && <GuideSheet onClose={() => setGuideOpen(false)} />}
     </div>
   );
 }
